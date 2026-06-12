@@ -14,9 +14,9 @@ const defaultWidgets: WidgetData[] = [
 
 const defaultLayouts: DashboardLayouts = {
   lg: [
-    { i: 'widget_1', x: 0, y: 0, w: 4, h: 5 },
+    { i: 'widget_1', x: 0, y: 0, w: 4, h: 4 },
     { i: 'widget_2', x: 4, y: 0, w: 8, h: 9 },
-    { i: 'widget_3', x: 0, y: 5, w: 4, h: 7 },
+    { i: 'widget_3', x: 0, y: 4, w: 4, h: 5 },
   ],
 };
 
@@ -27,7 +27,7 @@ interface DashboardState {
   layouts: DashboardLayouts;
   widgets: WidgetData[];
   savedLayouts: SavedLayout[];
-  addWidget: (type: WidgetType, options?: Partial<WidgetData>) => void;
+  addWidget: (type: WidgetType, options?: Partial<WidgetData>, x?: number, y?: number) => void;
   removeWidget: (id: string) => void;
   updateLayouts: (layouts: DashboardLayouts) => void;
   saveCurrentLayout: (name: string) => void;
@@ -46,7 +46,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   widgets: defaultWidgets,
   savedLayouts: [],
 
-  addWidget: (type, options = {}) => {
+  addWidget: (type, options = {}, x, y) => {
     const i = generateId();
     const titles: Record<WidgetType, string> = {
       stats: 'Stats Card', chart: 'Area Chart', table: 'Data Table', custom: 'Custom Widget',
@@ -58,18 +58,21 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       ...options,
     };
     const sizes: Record<WidgetType, { w: number; h: number }> = {
-      stats: { w: 4, h: 5 },
-      chart: { w: 7, h: 9 },
-      table: { w: 7, h: 9 },
-      custom: { w: 4, h: 5 },
+      stats: { w: 4, h: 4 },
+      chart: { w: 8, h: 9 },
+      table: { w: 8, h: 8 },
+      custom: { w: 4, h: 4 },
     };
-    const lgLayouts = get().layouts.lg || [];
+    const lgLayouts = get().layouts?.lg || [];
     const maxY = lgLayouts.length > 0 ? Math.max(...lgLayouts.map((l: Layout) => l.y + l.h)) : 0;
-    const newItem: Layout = { i, x: 0, y: maxY, ...sizes[type], minW: 2, minH: 3 };
+    
+    const finalX = x !== undefined ? x : 0;
+    const finalY = y !== undefined ? y : maxY;
+    const newItem: Layout = { i, x: finalX, y: finalY, ...sizes[type], minW: 2, minH: 3 };
 
     set((state) => ({
-      widgets: [...state.widgets, newWidget],
-      layouts: { ...state.layouts, lg: [...(state.layouts.lg || []), newItem] },
+      widgets: [...(state.widgets || []), newWidget],
+      layouts: { ...(state.layouts || {}), lg: [...(state.layouts?.lg || []), newItem] },
     }));
     setTimeout(() => get().persistUserData(), 0);
   },
@@ -113,6 +116,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
         layouts: JSON.parse(JSON.stringify(found.layouts)),
         widgets: JSON.parse(JSON.stringify(found.widgets)),
       });
+      setTimeout(() => get().persistUserData(), 0);
     }
   },
 
@@ -135,13 +139,23 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   loadUserData: () => {
     const { userId } = get();
     if (!userId) return;
-    const savedLayouts = localStorage.getItem(`dashboard_layouts_${userId}`);
-    const savedWidgets = localStorage.getItem(`dashboard_widgets_${userId}`);
-    const savedLayoutsList = localStorage.getItem(`saved_layouts_${userId}`);
+    
+    const safeParse = (key: string, defaultVal: any) => {
+      try {
+        const item = localStorage.getItem(key);
+        if (item && item !== 'undefined' && item !== 'null') {
+          return JSON.parse(item);
+        }
+      } catch (e) {
+        console.warn('Failed to parse localStorage for', key);
+      }
+      return defaultVal;
+    };
+
     set({
-      layouts: savedLayouts ? JSON.parse(savedLayouts) : defaultLayouts,
-      widgets: savedWidgets ? JSON.parse(savedWidgets) : defaultWidgets,
-      savedLayouts: savedLayoutsList ? JSON.parse(savedLayoutsList) : [],
+      layouts: safeParse(`dashboard_layouts_${userId}`, defaultLayouts),
+      widgets: safeParse(`dashboard_widgets_${userId}`, defaultWidgets),
+      savedLayouts: safeParse(`saved_layouts_${userId}`, []),
     });
   },
 }));

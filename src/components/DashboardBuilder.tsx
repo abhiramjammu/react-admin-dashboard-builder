@@ -59,6 +59,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName: _u
       onDrop={e => {
         e.preventDefault();
         setIsDragOver(false);
+        if ((e as any).handledByRGL) return;
         const type = e.dataTransfer.getData('text/plain') as any;
         if (type) addWidget(type);
       }}
@@ -96,8 +97,11 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName: _u
             isDroppable
             droppingItem={{ i: '__dropping__', w: 4, h: 4 } as any}
             onDrop={(_layout: any, _item: any, e: any) => {
-              const type = (e as any).dataTransfer.getData('text/plain') as any;
-              if (type) addWidget(type);
+              if (e && e.preventDefault) e.preventDefault();
+              if (e && e.stopPropagation) e.stopPropagation();
+              e.handledByRGL = true;
+              const type = (e as any).dataTransfer?.getData('text/plain') as any;
+              if (type) addWidget(type, {}, _item?.x, _item?.y);
               setIsDragOver(false);
             }}
             margin={[20, 20]}
