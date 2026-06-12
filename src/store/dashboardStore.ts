@@ -73,7 +73,6 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     let finalX = x;
     let finalY = y;
     const w = WIDGET_SIZES[type].w;
-    const h = WIDGET_SIZES[type].h;
 
     if (x === undefined || y === undefined) {
       const grid: boolean[][] = [];
@@ -226,7 +225,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
     if (loadedLayouts.lg) {
       loadedLayouts.lg = loadedLayouts.lg.map((l: Layout) => {
-        const wType = loadedWidgets.find((w: WidgetData) => w.i === l.i)?.type || 'custom';
+        const wType = (loadedWidgets.find((w: WidgetData) => w.i === l.i)?.type || 'custom') as WidgetType;
         const sizes = WIDGET_SIZES[wType];
         return {
           ...l,
