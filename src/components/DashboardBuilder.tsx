@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Responsive as ResponsiveGridLayout } from 'react-grid-layout';
+import RGL_PACKAGE from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useDashboardStore } from '../store/dashboardStore';
@@ -13,7 +13,8 @@ interface DashboardBuilderProps {
   userName: string | null;
 }
 
-export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName }) => {
+export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName: _userName }) => {
+  const RGL: any = (RGL_PACKAGE as any).Responsive || (RGL_PACKAGE as any).default?.Responsive || RGL_PACKAGE;
   const { layouts, widgets, updateLayouts, removeWidget, loadUserData } = useDashboardStore();
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -82,20 +83,20 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName }) 
           borderRadius: '16px', transition: 'border-color 0.2s',
           backgroundColor: isDragOver ? 'rgba(37,99,235,0.02)' : 'transparent',
         }}>
-          <ResponsiveGridLayout
+          <RGL
             width={width}
             className="layout"
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 960, sm: 720, xs: 480, xxs: 0 }}
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
             rowHeight={44}
-            onLayoutChange={(_curr, all) => updateLayouts(all)}
+            onLayoutChange={(_curr: any, all: any) => updateLayouts(all as any)}
             isDraggable
             isResizable
             isDroppable
-            droppingItem={{ i: '__dropping__', w: 4, h: 4 }}
-            onDrop={(_layout, _item, e) => {
-              const type = e.dataTransfer.getData('text/plain') as any;
+            droppingItem={{ i: '__dropping__', w: 4, h: 4 } as any}
+            onDrop={(_layout: any, _item: any, e: any) => {
+              const type = (e as any).dataTransfer.getData('text/plain') as any;
               if (type) addWidget(type);
               setIsDragOver(false);
             }}
@@ -139,7 +140,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName }) 
                 <div style={{ flex: 1, height: '100%' }}>{renderWidget(w)}</div>
               </div>
             ))}
-          </ResponsiveGridLayout>
+          </RGL>
         </div>
       )}
 
