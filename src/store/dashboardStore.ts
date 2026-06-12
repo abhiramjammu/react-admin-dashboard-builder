@@ -4,6 +4,13 @@ import type { WidgetType, WidgetData, DashboardLayouts, Layout, SavedLayout } fr
 
 export type { WidgetType, WidgetData, DashboardLayouts, Layout, SavedLayout };
 
+export const WIDGET_SIZES: Record<WidgetType, { w: number; h: number }> = {
+  stats: { w: 3, h: 2 },
+  chart: { w: 3, h: 3 },
+  table: { w: 4, h: 3 },
+  custom: { w: 3, h: 2 },
+};
+
 const generateId = () => `w_${Math.random().toString(36).substr(2, 9)}`;
 
 const defaultWidgets: WidgetData[] = [
@@ -14,9 +21,9 @@ const defaultWidgets: WidgetData[] = [
 
 const defaultLayouts: DashboardLayouts = {
   lg: [
-    { i: 'widget_1', x: 0, y: 0, w: 4, h: 4 },
-    { i: 'widget_2', x: 4, y: 0, w: 8, h: 9 },
-    { i: 'widget_3', x: 0, y: 4, w: 4, h: 5 },
+    { i: 'widget_1', x: 0, y: 0, w: 3, h: 2 },
+    { i: 'widget_2', x: 0, y: 2, w: 3, h: 3 },
+    { i: 'widget_3', x: 3, y: 2, w: 4, h: 3 },
   ],
 };
 
@@ -30,11 +37,14 @@ interface DashboardState {
   addWidget: (type: WidgetType, options?: Partial<WidgetData>, x?: number, y?: number) => void;
   removeWidget: (id: string) => void;
   updateLayouts: (layouts: DashboardLayouts) => void;
+  updateWidget: (id: string, data: Partial<WidgetData>) => void;
   saveCurrentLayout: (name: string) => void;
   loadSavedLayout: (id: string) => void;
   deleteSavedLayout: (id: string) => void;
   loadUserData: () => void;
   persistUserData: () => void;
+  draggingType: WidgetType | null;
+  setDraggingType: (type: WidgetType | null) => void;
 }
 
 export const useDashboardStore = create<DashboardState>((set, get) => ({
@@ -45,6 +55,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   layouts: defaultLayouts,
   widgets: defaultWidgets,
   savedLayouts: [],
+  draggingType: null,
+  setDraggingType: (type) => set({ draggingType: type }),
 
   addWidget: (type, options = {}, x, y) => {
     const i = generateId();
@@ -57,18 +69,57 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       title: options.title || titles[type],
       ...options,
     };
-    const sizes: Record<WidgetType, { w: number; h: number }> = {
-      stats: { w: 4, h: 4 },
-      chart: { w: 8, h: 9 },
-      table: { w: 8, h: 8 },
-      custom: { w: 4, h: 4 },
-    };
     const lgLayouts = get().layouts?.lg || [];
-    const maxY = lgLayouts.length > 0 ? Math.max(...lgLayouts.map((l: Layout) => l.y + l.h)) : 0;
-    
-    const finalX = x !== undefined ? x : 0;
-    const finalY = y !== undefined ? y : maxY;
-    const newItem: Layout = { i, x: finalX, y: finalY, ...sizes[type], minW: 2, minH: 3 };
+    let finalX = x;
+    let finalY = y;
+    const w = WIDGET_SIZES[type].w;
+    const h = WIDGET_SIZES[type].h;
+
+    if (x === undefined || y === undefined) {
+      const grid: boolean[][] = [];
+      let maxY = 0;
+      lgLayouts.forEach(l => {
+        maxY = Math.max(maxY, l.y + l.h);
+        for (let dy = 0; dy < l.h; dy++) {
+          if (!grid[l.y + dy]) grid[l.y + dy] = [];
+          for (let dx = 0; dx < l.w; dx++) {
+            grid[l.y + dy][l.x + dx] = true;
+          }
+        }
+      });
+      let found = false;
+      for (let sy = 0; sy <= maxY; sy++) {
+        for (let sx = 0; sx <= 12 - w; sx++) {
+          let canFit = true;
+          for (let dx = 0; dx < w; dx++) {
+            if (grid[sy] && grid[sy][sx + dx]) {
+              canFit = false; 
+              break;
+            }
+          }
+          if (canFit) {
+            finalX = sx;
+            finalY = sy;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (!found) {
+        finalX = 0;
+        finalY = maxY;
+      }
+    }
+
+    const newItem: Layout = { 
+      i, 
+      x: finalX as number, 
+      y: finalY as number, 
+      ...WIDGET_SIZES[type], 
+      minW: 2, 
+      minH: 2 
+    };
 
     set((state) => ({
       widgets: [...(state.widgets || []), newWidget],
@@ -89,8 +140,16 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   updateLayouts: (layouts) => {
+    if (!layouts) return;
     set({ layouts });
     setTimeout(() => get().persistUserData(), 300);
+  },
+
+  updateWidget: (id, data) => {
+    set((state) => ({
+      widgets: state.widgets.map(w => w.i === id ? { ...w, ...data } : w)
+    }));
+    setTimeout(() => get().persistUserData(), 0);
   },
 
   saveCurrentLayout: (name) => {
@@ -106,7 +165,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     };
     const updated = [...others, entry];
     set({ savedLayouts: updated });
-    localStorage.setItem(`saved_layouts_${userId}`, JSON.stringify(updated));
+    localStorage.setItem(`saved_layouts_v8_${userId}`, JSON.stringify(updated));
   },
 
   loadSavedLayout: (id) => {
@@ -124,7 +183,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const { userId } = get();
     set((state) => {
       const updated = state.savedLayouts.filter((s) => s.id !== id);
-      if (userId) localStorage.setItem(`saved_layouts_${userId}`, JSON.stringify(updated));
+      if (userId) localStorage.setItem(`saved_layouts_v8_${userId}`, JSON.stringify(updated));
       return { savedLayouts: updated };
     });
   },
@@ -132,8 +191,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   persistUserData: () => {
     const { layouts, widgets, userId } = get();
     if (!userId) return;
-    localStorage.setItem(`dashboard_layouts_${userId}`, JSON.stringify(layouts));
-    localStorage.setItem(`dashboard_widgets_${userId}`, JSON.stringify(widgets));
+    localStorage.setItem(`dashboard_layouts_v8_${userId}`, JSON.stringify(layouts));
+    localStorage.setItem(`dashboard_widgets_v8_${userId}`, JSON.stringify(widgets));
   },
 
   loadUserData: () => {
@@ -152,10 +211,37 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       return defaultVal;
     };
 
+    let loadedLayouts = safeParse(`dashboard_layouts_v8_${userId}`, defaultLayouts);
+    const loadedWidgets = safeParse(`dashboard_widgets_v8_${userId}`, defaultWidgets);
+    
+    // Auto-fix any squished cached layouts from previous versions or corrupted array formats
+    if (Array.isArray(loadedLayouts)) {
+      // If it was saved as a flat array, migrate it to the correct breakpoint format
+      loadedLayouts = { lg: loadedLayouts };
+    }
+    
+    if (!loadedLayouts || typeof loadedLayouts !== 'object' || !loadedLayouts.lg) {
+      loadedLayouts = defaultLayouts;
+    }
+
+    if (loadedLayouts.lg) {
+      loadedLayouts.lg = loadedLayouts.lg.map((l: Layout) => {
+        const wType = loadedWidgets.find((w: WidgetData) => w.i === l.i)?.type || 'custom';
+        const sizes = WIDGET_SIZES[wType];
+        return {
+          ...l,
+          w: l.w || sizes.w,
+          h: l.h || sizes.h,
+          minW: 2,
+          minH: 2
+        };
+      });
+    }
+
     set({
-      layouts: safeParse(`dashboard_layouts_${userId}`, defaultLayouts),
-      widgets: safeParse(`dashboard_widgets_${userId}`, defaultWidgets),
-      savedLayouts: safeParse(`saved_layouts_${userId}`, []),
+      layouts: loadedLayouts,
+      widgets: loadedWidgets,
+      savedLayouts: safeParse(`saved_layouts_v8_${userId}`, []),
     });
   },
 }));

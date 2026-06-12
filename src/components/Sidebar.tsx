@@ -15,9 +15,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange }) => {
-  const addWidget = useDashboardStore((s: any) => s.addWidget);
+  const { addWidget, setDraggingType, draggingType } = useDashboardStore();
   const [showBuilder, setShowBuilder] = useState(false);
-  const [draggingType, setDraggingType] = useState<string | null>(null);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },

@@ -14,7 +14,7 @@ export const CustomWidget: React.FC<CustomWidgetProps> = ({ widget }) => {
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column',
-      padding: '24px', backgroundColor: '#FFFFFF', borderRadius: '12px',
+      padding: '16px', backgroundColor: '#FFFFFF', borderRadius: '12px',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flex: 1 }}>
         <div style={{ flex: 1, minWidth: 0 }}>

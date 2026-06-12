@@ -14,7 +14,7 @@ const users = [
 
 export const TableWidget: React.FC<TableWidgetProps> = ({ title }) => {
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '24px', backgroundColor: 'var(--bg-widget)', borderRadius: 'var(--radius-lg)' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '16px', backgroundColor: 'var(--bg-widget)', borderRadius: 'var(--radius-lg)' }}>
       <h3 style={{ margin: '0 0 20px 0', fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{title}</h3>
       <div style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>

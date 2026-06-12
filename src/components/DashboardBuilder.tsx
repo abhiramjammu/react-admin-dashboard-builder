@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import RGL_PACKAGE from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { useDashboardStore } from '../store/dashboardStore';
+import { useDashboardStore, WIDGET_SIZES } from '../store/dashboardStore';
 import type { WidgetData } from '../store/types';
 import { StatsWidget } from './widgets/StatsWidget';
 import { ChartWidget } from './widgets/ChartWidget';
@@ -15,12 +15,14 @@ interface DashboardBuilderProps {
 
 export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName: _userName }) => {
   const RGL: any = (RGL_PACKAGE as any).Responsive || (RGL_PACKAGE as any).default?.Responsive || RGL_PACKAGE;
-  const { layouts, widgets, updateLayouts, removeWidget, loadUserData } = useDashboardStore();
+  const { layouts, widgets, updateLayouts, removeWidget, loadUserData, draggingType } = useDashboardStore();
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1200);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [editingWidget, setEditingWidget] = useState<WidgetData | null>(null);
   const addWidget = useDashboardStore((s: any) => s.addWidget);
+  const updateWidget = useDashboardStore((s: any) => s.updateWidget);
 
   useEffect(() => {
     loadUserData();
@@ -38,7 +40,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName: _u
 
   const renderWidget = (w: WidgetData) => {
     switch (w.type) {
-      case 'stats': return <StatsWidget title={w.title} />;
+      case 'stats': return <StatsWidget widget={w} />;
       case 'chart': return <ChartWidget title={w.title} />;
       case 'table': return <TableWidget title={w.title} />;
       case 'custom': return <CustomWidget widget={w} />;
@@ -90,26 +92,31 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName: _u
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 960, sm: 720, xs: 480, xxs: 0 }}
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={44}
+            rowHeight={60}
             onLayoutChange={(_curr: any, all: any) => updateLayouts(all as any)}
             isDraggable
             isResizable
             isDroppable
-            droppingItem={{ i: '__dropping__', w: 4, h: 4 } as any}
-            onDrop={(_layout: any, _item: any, e: any) => {
-              if (e && e.preventDefault) e.preventDefault();
-              if (e && e.stopPropagation) e.stopPropagation();
-              e.handledByRGL = true;
-              const type = (e as any).dataTransfer?.getData('text/plain') as any;
+            droppingItem={{ i: '__dropping__', w: draggingType ? WIDGET_SIZES[draggingType].w : 4, h: draggingType ? WIDGET_SIZES[draggingType].h : 4 } as any}
+            onDragStop={() => setIsDragOver(false)}
+            onDrop={(elemParams: any) => {
+              const { e } = elemParams;
+              const _item = elemParams;
+              e.preventDefault();
+              const type = e.dataTransfer.getData('widgetType');
               if (type) addWidget(type, {}, _item?.x, _item?.y);
               setIsDragOver(false);
             }}
-            margin={[20, 20]}
+            margin={[24, 24]}
             useCSSTransforms
           >
-            {widgets.map((w) => (
+            {widgets.map((w) => {
+              const layoutList = layouts?.lg || (Array.isArray(layouts) ? layouts : []);
+              const layoutItem = layoutList.find((l: any) => l.i === w.i) || { x: 0, y: Infinity, ...WIDGET_SIZES[w.type] };
+              return (
               <div
                 key={w.i}
+                data-grid={layoutItem}
                 style={{
                   backgroundColor: '#FFFFFF',
                   borderRadius: '14px',
@@ -141,10 +148,80 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({ userName: _u
                 >
                   ✕
                 </button>
-                <div style={{ flex: 1, height: '100%' }}>{renderWidget(w)}</div>
+                <div style={{ flex: 1, height: '100%', cursor: 'pointer' }} onDoubleClick={() => setEditingWidget(w)}>
+                  {renderWidget(w)}
+                </div>
               </div>
-            ))}
+            )})}
           </RGL>
+        </div>
+      )}
+
+      {/* Edit Widget Modal */}
+      {editingWidget && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setEditingWidget(null)}>
+          <div style={{
+            backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '32px',
+            width: '100%', maxWidth: '400px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
+          }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ margin: '0 0 24px 0', fontSize: '1.25rem', color: '#111827' }}>Edit {editingWidget.type === 'stats' ? 'Stat' : 'Widget'}</h2>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#374151' }}>Title</label>
+              <input 
+                type="text" 
+                value={editingWidget.title} 
+                onChange={e => setEditingWidget({...editingWidget, title: e.target.value})}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '0.95rem' }}
+              />
+            </div>
+
+            {(editingWidget.type === 'stats' || editingWidget.type === 'custom') && (
+              <>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#374151' }}>Main Value (e.g. ₹45,231)</label>
+                  <input 
+                    type="text" 
+                    value={editingWidget.customText || ''} 
+                    onChange={e => setEditingWidget({...editingWidget, customText: e.target.value})}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '0.95rem' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#374151' }}>Subtext / Change (e.g. +20%)</label>
+                  <input 
+                    type="text" 
+                    value={editingWidget.customNote || ''} 
+                    onChange={e => setEditingWidget({...editingWidget, customNote: e.target.value})}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '0.95rem' }}
+                  />
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button 
+                onClick={() => setEditingWidget(null)}
+                style={{ padding: '10px 16px', borderRadius: '8px', backgroundColor: '#F3F4F6', color: '#4B5563', fontWeight: 500, border: 'none', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  updateWidget(editingWidget.i, editingWidget);
+                  setEditingWidget(null);
+                }}
+                style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: '#2563EB', color: '#FFFFFF', fontWeight: 500, border: 'none', cursor: 'pointer' }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
